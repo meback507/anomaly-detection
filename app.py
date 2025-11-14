@@ -1,53 +1,47 @@
-import numpy as np
-import pandas as pd
-import os
-from scipy.ndimage import gaussian_filter
-import copy
-
-from time import sleep
-import plotly.express as px
-import plotly.graph_objects as go
-import dash
-from dash import Dash, dcc, html, Input, Output, callback, State, dash_table
-import dash_bootstrap_components as dbc
-import dash_gif_component as gif
 import base64
-from base64 import b64encode
+import copy
 import datetime
 import io
-import plotly.io as pio
-pio.renderers.default = 'svg'
-from plotly.subplots import make_subplots
-import dash_ag_grid as dag
-
+import os
+from base64 import b64encode
 from random import randint
+from time import sleep
+
+import dash
+import dash_ag_grid as dag
+import dash_bootstrap_components as dbc
+import dash_gif_component as gif
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import plotly.io as pio
 import scipy
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+from dash import Dash, Input, Output, State, callback, dash_table, dcc, html
 from joblib import dump, load
+from plotly.subplots import make_subplots
+from scipy.ndimage import gaussian_filter
 from sklearn import svm
 from sklearn.covariance import EllipticEnvelope
 from sklearn.datasets import make_blobs, make_moons
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.ensemble import IsolationForest
 from sklearn.kernel_approximation import Nystroem
 from sklearn.linear_model import SGDOneClassSVM
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.pipeline import make_pipeline
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
-import plotly.express as px
-import pandas as pd
 
-import plotly.io as pio
-import plotly.graph_objects as go
+pio.renderers.default = "svg"
 
-pio.templates.default = 'ggplot2'
+pio.templates.default = "ggplot2"
 
-import os
+external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
-
-app = Dash(__name__, external_stylesheets=[dbc.themes.FLATLY],
-                suppress_callback_exceptions=True)
+app = Dash(
+    __name__,
+    external_stylesheets=[dbc.themes.FLATLY],
+    suppress_callback_exceptions=True,
+)
 
 # the style arguments for the sidebar. We use position:fixed and a fixed width
 SIDEBAR_STYLE = {
@@ -71,7 +65,8 @@ sidebar = html.Div(
         html.H6("Anomaly Detection", className="display-4"),
         html.Hr(),
         html.P(
-            "A set of anomaly detection algorithms implemented in Python using scikit-learn", className="lead"
+            "A set of anomaly detection algorithms implemented in Python using scikit-learn",
+            className="lead",
         ),
         dbc.Nav(
             [
@@ -83,7 +78,8 @@ sidebar = html.Div(
         ),
         html.Hr(),
         html.P(
-            "Scikit-learn: Machine Learning in Python, Pedregosa et al., JMLR 12, pp. 2825-2830, 2011.", className="trail"
+            "Scikit-learn: Machine Learning in Python, Pedregosa et al., JMLR 12, pp. 2825-2830, 2011.",
+            className="trail",
         ),
     ],
     style=SIDEBAR_STYLE,
@@ -129,33 +125,57 @@ anomaly_algorithms = [
     ),
 ]
 
-
-
 # Define datasets
 blobs_params = dict(random_state=0, n_samples=n_inliers, n_features=2)
 rng = np.random.RandomState(36)
 
 dataset1 = make_blobs(centers=[[0, 0], [0, 0]], cluster_std=0.5, **blobs_params)[0]
-dataset2 = make_blobs(centers=[[2, 2], [-2, -2]], cluster_std=[0.5, 0.5], **blobs_params)[0]
-dataset3 = make_blobs(centers=[[2, 2], [-2, -2]], cluster_std=[1.5, 0.3], **blobs_params)[0]
-dataset4 = 4.0 * (make_moons(n_samples=n_samples, noise=0.05, random_state=0)[0] - np.array([0.5, 0.25]))
+dataset2 = make_blobs(
+    centers=[[2, 2], [-2, -2]], cluster_std=[0.5, 0.5], **blobs_params
+)[0]
+dataset3 = make_blobs(
+    centers=[[2, 2], [-2, -2]], cluster_std=[1.5, 0.3], **blobs_params
+)[0]
+dataset4 = 4.0 * (
+    make_moons(n_samples=n_samples, noise=0.05, random_state=0)[0]
+    - np.array([0.5, 0.25])
+)
 dataset5 = 14.0 * (np.random.RandomState(42).rand(n_samples, 2) - 0.5)
 
 # Adding outliers
-dataset1 = np.concatenate([dataset1, rng.uniform(low=-6, high=6, size=(n_outliers, 2))], axis=0)
-dataset2 = np.concatenate([dataset2, rng.uniform(low=-6, high=6, size=(n_outliers, 2))], axis=0)
-dataset3 = np.concatenate([dataset3, rng.uniform(low=-6, high=6, size=(n_outliers, 2))], axis=0)
-dataset4 = np.concatenate([dataset4, rng.uniform(low=-6, high=6, size=(n_outliers, 2))], axis=0)
-dataset5 = np.concatenate([dataset5, rng.uniform(low=-6, high=6, size=(n_outliers, 2))], axis=0)
+dataset1 = np.concatenate(
+    [dataset1, rng.uniform(low=-6, high=6, size=(n_outliers, 2))], axis=0
+)
+dataset2 = np.concatenate(
+    [dataset2, rng.uniform(low=-6, high=6, size=(n_outliers, 2))], axis=0
+)
+dataset3 = np.concatenate(
+    [dataset3, rng.uniform(low=-6, high=6, size=(n_outliers, 2))], axis=0
+)
+dataset4 = np.concatenate(
+    [dataset4, rng.uniform(low=-6, high=6, size=(n_outliers, 2))], axis=0
+)
+dataset5 = np.concatenate(
+    [dataset5, rng.uniform(low=-6, high=6, size=(n_outliers, 2))], axis=0
+)
 
 
 # Compare classifiers
-def classifier_test(X,flag=0,theme='ggplot2'):
+def classifier_test(X, flag=0, theme="ggplot2"):
     plot_num = 1
     xx, yy = np.meshgrid(np.linspace(-7, 7, 50), np.linspace(-7, 7, 50))
     pio.templates.default = theme
-    fig = make_subplots(rows=1, cols=5,
-        subplot_titles=("Robust covariance", "One-class SVM", "One-class SVM (SGD)", "Isolation Forest", "Local Outlier Factor"))
+    fig = make_subplots(
+        rows=1,
+        cols=5,
+        subplot_titles=(
+            "Robust covariance",
+            "One-class SVM",
+            "One-class SVM (SGD)",
+            "Isolation Forest",
+            "Local Outlier Factor",
+        ),
+    )
 
     for name, algorithm in anomaly_algorithms:
         algorithm.fit(X)
@@ -165,42 +185,62 @@ def classifier_test(X,flag=0,theme='ggplot2'):
             y_pred = algorithm.fit_predict(X)
         else:
             y_pred = algorithm.fit(X).predict(X)
-            
+
         # plot the levels lines and the points
         if name != "Local Outlier Factor":  # LOF does not implement predict
             Z = algorithm.predict(np.c_[xx.ravel(), yy.ravel()])
 
-        y_pred[y_pred<=0] = 0
-        Z[Z<=0] = 0
+        y_pred[y_pred <= 0] = 0
+        Z[Z <= 0] = 0
 
-        if flag==0:
-            fig.add_trace(go.Scatter(x=X[:, 0], y=X[:, 1],mode='markers',marker_color=y_pred.astype(int)),row=1, col=plot_num)
+        if flag == 0:
+            fig.add_trace(
+                go.Scatter(
+                    x=X[:, 0],
+                    y=X[:, 1],
+                    mode="markers",
+                    marker_color=y_pred.astype(int),
+                ),
+                row=1,
+                col=plot_num,
+            )
         else:
-            fig.add_trace(go.Scatter(x=xx.ravel(), y=yy.ravel(),mode='markers',marker_color=Z.astype(int)),row=1, col=plot_num)
+            fig.add_trace(
+                go.Scatter(
+                    x=xx.ravel(),
+                    y=yy.ravel(),
+                    mode="markers",
+                    marker_color=Z.astype(int),
+                ),
+                row=1,
+                col=plot_num,
+            )
         fig.update_layout(height=425)
         fig.update_layout(showlegend=False)
         plot_num += 1
 
-
     return fig
 
-fig1 = classifier_test(dataset1,flag=0,theme='ggplot2')
-fig2 = classifier_test(dataset1,flag=1,theme='ggplot2')
-fig3 = classifier_test(dataset2,flag=0,theme='presentation')
-fig4 = classifier_test(dataset2,flag=1,theme='presentation')
-fig5 = classifier_test(dataset3,flag=0,theme='plotly')
-fig6 = classifier_test(dataset3,flag=1,theme='plotly')
-fig7 = classifier_test(dataset4,flag=0,theme='ggplot2')
-fig8 = classifier_test(dataset4,flag=1,theme='ggplot2')
-fig9 = classifier_test(dataset5,flag=0,theme='presentation')
-fig10 = classifier_test(dataset5,flag=1,theme='presentation')
+
+fig1 = classifier_test(dataset1, flag=0, theme="ggplot2")
+fig2 = classifier_test(dataset1, flag=1, theme="ggplot2")
+fig3 = classifier_test(dataset2, flag=0, theme="presentation")
+fig4 = classifier_test(dataset2, flag=1, theme="presentation")
+fig5 = classifier_test(dataset3, flag=0, theme="plotly")
+fig6 = classifier_test(dataset3, flag=1, theme="plotly")
+fig7 = classifier_test(dataset4, flag=0, theme="ggplot2")
+fig8 = classifier_test(dataset4, flag=1, theme="ggplot2")
+fig9 = classifier_test(dataset5, flag=0, theme="presentation")
+fig10 = classifier_test(dataset5, flag=1, theme="presentation")
 
 
 @app.callback(Output("page-content", "children"), [Input("url", "pathname")])
 def render_page_content(pathname):
     if pathname == "/":
-        return html.Div(children=[
-            dcc.Markdown('''
+        return html.Div(
+            children=[
+                dcc.Markdown(
+                    """
             # **Anomaly detection algorithms**
             ##### A set set of five anomaly detection algorithms are described as well as compared here. The purpose of this webapp is to demonstrate how Plotly-Dash can be used for data visualization as well as offer a template for other interactive visualization. The five anaomaly detection algorithms are as follows:
             ### **1) Robust covariance**
@@ -217,9 +257,12 @@ def render_page_content(pathname):
 
             ### **5) Local Outlier Factor**
             ##### The local outlier factor is based on a concept of a local density, where locality is given by k nearest neighbors, whose distance is used to estimate the density. By comparing the local density of an object to the local densities of its neighbors, one can identify regions of similar density, and points that have a substantially lower density than their neighbors. These are considered to be outliers. The local density is estimated by the typical distance at which a point can be "reached" from its neighbors. The definition of "reachability distance" used in LOF is an additional measure to produce more stable results within clusters.
-            ''', mathjax=True),
-            html.Hr(),
-            dcc.Markdown('''
+            """,
+                    mathjax=True,
+                ),
+                html.Hr(),
+                dcc.Markdown(
+                    """
             ## **References**
             ##### 1) https://scikit-learn.org/stable/auto_examples/covariance/plot_mahalanobis_distances.html
             ##### 2) https://scikit-learn.org/stable/modules/generated/sklearn.svm.OneClassSVM.html
@@ -228,65 +271,104 @@ def render_page_content(pathname):
             ##### 5) Breunig, M. M.; Kriegel, H.-P.; Ng, R. T.; Sander, J. (2000). LOF: Identifying Density-based Local Outliers. Proceedings of the 2000 ACM SIGMOD International Conference on Management of Data. SIGMOD.
             ##### 6) https://builtin.com/machine-learning/anomaly-detection-algorithms
 
-            ''', mathjax=True)
-            ])
+            """,
+                    mathjax=True,
+                ),
+            ]
+        )
     elif pathname == "/page-1":
-        return html.Div(children=[
-            dcc.Markdown('''
+        return html.Div(
+            children=[
+                dcc.Markdown(
+                    """
                 # **Anomaly Detection**
-                ''', mathjax=True),
-            html.Hr(),
-            dcc.Markdown('''
+                """,
+                    mathjax=True,
+                ),
+                html.Hr(),
+                dcc.Markdown(
+                    """
                 ### **Comparison on Dataset 1**
                 #### Prediction on the points in the dataset
-                ''', mathjax=True),
+                """,
+                    mathjax=True,
+                ),
                 dcc.Graph(figure=fig1),
-                dcc.Markdown('''
+                dcc.Markdown(
+                    """
                 #### Decision boundaries
-                ''', mathjax=True),
+                """,
+                    mathjax=True,
+                ),
                 dcc.Graph(figure=fig2),
                 html.Hr(),
-                dcc.Markdown('''
+                dcc.Markdown(
+                    """
                 ### **Comparison on Dataset 2**
                 #### Prediction on the points in the dataset
-                ''', mathjax=True),
+                """,
+                    mathjax=True,
+                ),
                 dcc.Graph(figure=fig3),
-                dcc.Markdown('''
+                dcc.Markdown(
+                    """
                 #### Decision boundaries
-                ''', mathjax=True),
+                """,
+                    mathjax=True,
+                ),
                 dcc.Graph(figure=fig4),
                 html.Hr(),
-                dcc.Markdown('''
+                dcc.Markdown(
+                    """
                 ### **Comparison on Dataset 3**
                 #### Prediction on the points in the dataset
-                ''', mathjax=True),
+                """,
+                    mathjax=True,
+                ),
                 dcc.Graph(figure=fig5),
-                dcc.Markdown('''
+                dcc.Markdown(
+                    """
                 #### Decision boundaries
-                ''', mathjax=True),
+                """,
+                    mathjax=True,
+                ),
                 dcc.Graph(figure=fig6),
                 html.Hr(),
-                dcc.Markdown('''
+                dcc.Markdown(
+                    """
                 ### **Comparison on Dataset 4**
                 #### Prediction on the points in the dataset
-                ''', mathjax=True),
+                """,
+                    mathjax=True,
+                ),
                 dcc.Graph(figure=fig7),
-                dcc.Markdown('''
+                dcc.Markdown(
+                    """
                 #### Decision boundaries
-                ''', mathjax=True),
+                """,
+                    mathjax=True,
+                ),
                 dcc.Graph(figure=fig8),
                 html.Hr(),
-                dcc.Markdown('''
+                dcc.Markdown(
+                    """
                 ### **Comparison on Dataset 5**
                 #### Prediction on the points in the dataset
-                ''', mathjax=True),
+                """,
+                    mathjax=True,
+                ),
                 dcc.Graph(figure=fig9),
-                dcc.Markdown('''
+                dcc.Markdown(
+                    """
                 #### Decision boundaries
-                ''', mathjax=True),
+                """,
+                    mathjax=True,
+                ),
                 dcc.Graph(figure=fig10),
                 html.Hr(),
-                html.Hr()])
+                html.Hr(),
+            ]
+        )
     # If the user tries to reach a different page, return a 404 message
     return html.Div(
         [
@@ -298,5 +380,5 @@ def render_page_content(pathname):
     )
 
 
-if __name__ == '__main__':
-    app.run(port = 5000, debug=True, dev_tools_hot_reload=False)
+if __name__ == "__main__":
+    app.run(port=5000, debug=True, dev_tools_hot_reload=False)
